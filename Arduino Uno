@@ -1,0 +1,1015 @@
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(A0, A1, A2, A3, A4, A5);  //Pines donde va conectada la pantalla (RS, E, D4, D5, D6, D7)
+#include <Keypad.h>
+#include <TimerOne.h>
+const int led =11;  // Pin de salida de Frecuencias
+const int Buzzer=10; // Pin Salida Buzzer
+int ledState = LOW;    // El LED empieza apagado
+volatile unsigned long blinkCount = 0; // La definimos como volatile
+unsigned long N;  // Haremos copia del blinkCount
+float TONOS[32]={1.1,2.1,3,3.4,4.7,5.6,6,7.9,8,10,11,12,15.20,25,26,30,35,36,40,50,60,70,80,90,100};//defino un vector de hasta 32 frecuencias, con valores entre 0 y 32kHz
+float VectorFinal[100]={1.1,2.1,3,3.4,4.7,5.6,6,7.9,8,10,11,12,15.20,25,26,30,35,36,40,50,60,70,80,90,100};
+float A123[32]={1.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1};
+float A100[32]={100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,100};
+float A555[100]={1.1,2.1,3,3.4,4.7,5.6,6,7.9,8,10,11,12,15.20,25,26,30,35,36,40,50,60,70,80,90,100,1.1,2.1,3,3.4,4.7,5.6,6,7.9,8,10,11,12,15.20,25,26,30,35,36,40,50,60,70,80,90,100,1.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,1.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1,2.1};
+
+int CANT_TONE=24; //cantidad de tonos de la secuencia completa
+long long Periodo=0;
+unsigned long duracion=1000;
+
+const byte filas = 4;     //Numero de filas del teclado
+const byte columnas = 4;  //Numero de columnas del teclado
+String CadenaTeclado= "A124";
+String VectorFrecuencias= "A124";
+int caracter=0; 
+char InputTeclado=1;
+char Sonidos=0;
+char vuelta=1;
+
+//Defino una matriz 4x4 con la posicion de las filas y columnas
+char matriz[filas][columnas] =
+{
+
+  { '1', '2', '3', 'A'},
+  { '4', '5', '6', 'B'},
+  { '7', '8', '9', 'C'},
+  { '*', '0', '#', 'D'},
+
+};
+
+byte pinesFilas[filas] = {9, 8, 7, 6};       //Pines donde van conectadas las filas del teclado
+byte pinesColumnas[columnas] = {5, 4, 3, 2}; //Pines donde van conectadas las columnas del teclado
+
+//Inicializo el teclado con el numero de filas, columnas, los pines del Arduino utilizados y la matriz
+Keypad teclado = Keypad( makeKeymap(matriz), pinesFilas, pinesColumnas, filas, columnas);
+
+//Variables para el control de la posicion del cursor
+int posX = 0;
+int posY = 0;
+
+//Variales para el control de las teclas
+char presionando;
+int veces_presionada = 0;
+int mayuscula_activada = 0;
+int mostrar_cursorPantalla = 1;
+int contador = 0;
+
+//Variables para el control del contador, ya que no se usa ningun delay() en este codigo
+unsigned long tiempo_anterior = 0;
+int periodo = 500;  //500 milisegundos
+
+void setup() {
+
+  lcd.begin(16, 2);                    //Inicializamos la pantalla
+  lcd.setCursor(3, 0);
+  lcd.print("Ingrese un");
+  lcd.setCursor(4, 1);
+  lcd.print("Codigo");
+  delay(2000);
+  lcd.clear();
+  pinMode(led, OUTPUT);
+  pinMode(Buzzer, OUTPUT);
+  Serial.begin(9600);
+}
+
+void loop() {
+
+while(InputTeclado==1)
+{  
+vuelta=1;
+
+  char tecla_presionada = teclado.getKey();  //Almacena la tecla presionada
+
+  if (millis() > tiempo_anterior + periodo)  //Condicional para evaluar si transcurrieron 500 milisegundos
+  {
+    tiempo_anterior = millis();
+
+    //Si transcurrieron 500 milisegundos y hubo una tecla presionada, aumenta en +1 el contador
+    if (veces_presionada > 0)
+    {
+      contador++;
+
+      if (contador == 3)            //Si el contador llega a 3, el cursor avanza una posicion
+      {
+        posX++;
+        veces_presionada = 0;
+
+ /////////////////////////////////////////////////////////////////////////////////////////////////////////       CadenaTeclado[caracter]=' ';
+        caracter++;
+      }
+    }
+
+    mostrar_cursorPantalla++;     //Variable para el control del parpadeo del cursor
+
+    if (mostrar_cursorPantalla > 1)
+    {
+      mostrar_cursorPantalla = 0;
+    }
+  }
+
+  if (mostrar_cursorPantalla == 1)    //Muestra el cursor en la pantalla
+  {
+    lcd.setCursor(posX, posY);
+    lcd.cursor();
+  }
+
+  if (mostrar_cursorPantalla == 0)   //Oculta el cursor en la pantalla
+  {
+    lcd.setCursor(posX, posY);
+    lcd.noCursor();
+  }
+
+  if (posX > 15)       //La posicion en X no puede ser mayor a 15 (el eje X va desde 0 hasta 15)
+  {
+    posX = 0;
+    posY++;
+  }
+
+  if (posX < 0)       //La posicion en X no puede ser menor a 0
+  {
+    posX = 0;
+  }
+
+  if (posY > 1)      //La posicion en Y no puede ser mayor a 1 (el eje Y va desde 0 hasta 1)
+  {
+    posY = 0;
+  }
+
+  switch (tecla_presionada)        //Switch-case de acuerdo a la tecla presionada
+  {
+    case 'A':                      //La tecla A es la espaciadora. Aumenta en +1 la posicion del cursor
+      posX++;
+      veces_presionada = 0;        
+      caracter++;                 //Incremento posición dentro del vector CadenaTeclado
+      
+      break;
+
+    case 'B':                     //La tecla B sirve para borrar el caracter anterior escrito
+      posX--;
+      lcd.setCursor(posX, posY);
+      lcd.print(" ");
+      caracter--;                //Borro caracter anterior dentro del vector CadenaTeclado 
+      CadenaTeclado[caracter]=' ';
+      caracter++;
+      veces_presionada = 0;
+      break;
+
+    case 'C':                     //La tecla C borra TODO lo escrito en la pantalla y posiciona el cursor en (0,0)
+      lcd.clear();
+      posX = 0;
+      posY = 0;
+      veces_presionada = 0;
+      caracter=0;
+      CadenaTeclado= "    ";
+      break;
+
+    case 'D':                    //La tecla D mueve el cursor en el eje Y
+      posY++;
+      veces_presionada = 0;
+      break;
+
+    case '0':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '0' && veces_presionada > 0)
+      {
+        posX++;
+        veces_presionada = 0;
+        caracter++;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '0';
+
+      if (veces_presionada > 5)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        lcd.print('+');
+        CadenaTeclado[caracter]= '+';   // Cargo en la posición "actual el signo +"
+      }
+
+      if (veces_presionada == 2)
+      {
+        lcd.print('-');
+        CadenaTeclado[caracter]= '-'; 
+      }
+
+      if (veces_presionada == 3)
+      {
+        lcd.print('*');
+        CadenaTeclado[caracter]= '*'; 
+        
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('/');
+        CadenaTeclado[caracter]= '/'; 
+      }
+
+      if (veces_presionada == 5)
+      {
+        lcd.print('0');
+        CadenaTeclado[caracter]= '0'; 
+      }
+      break;
+
+    case '*':                    //La tecla * activa y desactiva las mayusculas
+      mayuscula_activada++;
+
+      if (mayuscula_activada > 1)
+      {
+        mayuscula_activada = 0;
+        InputTeclado=0;
+        Sonidos=1;
+      
+      }
+      break;
+
+    case '#':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '#' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '#';
+
+      if (veces_presionada > 5)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        lcd.print('>');
+        CadenaTeclado[caracter]= '>'; 
+        
+      }
+
+      if (veces_presionada == 2)
+      {
+        lcd.print('<');
+        CadenaTeclado[caracter]= '<'; 
+      }
+
+      if (veces_presionada == 3)
+      {
+        lcd.print('=');
+        CadenaTeclado[caracter]= '='; 
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('!');
+        CadenaTeclado[caracter]= '!'; 
+      }
+
+      if (veces_presionada == 5)
+      {
+        lcd.print('#');
+        CadenaTeclado[caracter]= '#';
+        InputTeclado=0;
+      }
+      break;
+
+    case '1':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '1' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '1';
+
+      if (veces_presionada > 5)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        lcd.print('(');
+        CadenaTeclado[caracter]= '(';
+      }
+
+      if (veces_presionada == 2)
+      {
+        lcd.print(')');
+        CadenaTeclado[caracter]= ')';
+      }
+
+      if (veces_presionada == 3)
+      {
+        lcd.print('.');
+        CadenaTeclado[caracter]= '.';
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print(',');
+        CadenaTeclado[caracter]= ',';
+      }
+
+      if (veces_presionada == 5)
+      {
+        lcd.print('1');
+        CadenaTeclado[caracter]= '1';
+      }
+      break;
+
+    case '2':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '2' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '2';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('A');
+          CadenaTeclado[caracter]= 'A';
+          Serial.print(CadenaTeclado[caracter]);
+          Serial.print(caracter);
+          
+ //////////////////////////////////////////         
+        }
+        else
+        {
+          lcd.print('a');
+          CadenaTeclado[caracter]= 'a';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('B');
+          CadenaTeclado[caracter]= 'B';
+        }
+        else
+        {
+          lcd.print('b');
+          CadenaTeclado[caracter]= 'b';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('C');
+          CadenaTeclado[caracter]= 'C';
+        }
+        else
+        {
+          lcd.print('c');
+          CadenaTeclado[caracter]= 'c';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('2');
+        CadenaTeclado[caracter]= '2';
+      }
+      break;
+
+    case '3':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '3' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '3';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('D');
+          CadenaTeclado[caracter]= 'D';
+        }
+        else
+        {
+          lcd.print('d');
+          CadenaTeclado[caracter]= 'd';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('E');
+          CadenaTeclado[caracter]= 'E';
+        }
+        else
+        {
+          lcd.print('e');
+          CadenaTeclado[caracter]= 'e';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('F');
+          CadenaTeclado[caracter]= 'F';
+        }
+        else
+        {
+          lcd.print('f');
+          CadenaTeclado[caracter]= 'f';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('3');
+        CadenaTeclado[caracter]= '3';
+      }
+      break;
+
+    case '4':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '4' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '4';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('G');
+          CadenaTeclado[caracter]= 'G';
+        }
+        else
+        {
+          lcd.print('g');
+          CadenaTeclado[caracter]= 'g';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('H');
+          CadenaTeclado[caracter]= 'H';
+        }
+        else
+        {
+          lcd.print('h');
+          CadenaTeclado[caracter]= 'h';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('I');
+          CadenaTeclado[caracter]= 'I';
+        }
+        else
+        {
+          lcd.print('i');
+          CadenaTeclado[caracter]= 'i';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('4');
+        CadenaTeclado[caracter]= '4';
+      }
+      break;
+
+    case '5':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '5' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '5';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('J');
+          CadenaTeclado[caracter]= 'J';
+        }
+        else
+        {
+          lcd.print('j');
+          CadenaTeclado[caracter]= 'j';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('K');
+          CadenaTeclado[caracter]= 'K';
+        }
+        else
+        {
+          lcd.print('k');
+          CadenaTeclado[caracter]= 'k';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('L');
+          CadenaTeclado[caracter]= 'L';
+        }
+        else
+        {
+          lcd.print('l');
+          CadenaTeclado[caracter]= 'l';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('5');
+        CadenaTeclado[caracter]= '5';
+      }
+      break;
+
+    case '6':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '6' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '6';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('M');
+          CadenaTeclado[caracter]= 'M';
+        }
+        else
+        {
+          lcd.print('m');
+          CadenaTeclado[caracter]= 'm';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('N');
+          CadenaTeclado[caracter]= 'N';
+        }
+        else
+        {
+          lcd.print('n');
+          CadenaTeclado[caracter]= 'n';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('O');
+          CadenaTeclado[caracter]= 'O';
+        }
+        else
+        {
+          lcd.print('o');
+          CadenaTeclado[caracter]= 'o';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('6');
+        CadenaTeclado[caracter]= '6';
+      }
+      break;
+
+    case '7':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '7' && veces_presionada > 0)
+      {
+        posX++;
+        caracter++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '7';
+
+      if (veces_presionada > 5)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('P');
+          CadenaTeclado[caracter]= 'P';
+        }
+        else
+        {
+          lcd.print('p');
+          CadenaTeclado[caracter]= 'p';
+        }
+      }
+
+     if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('Q');
+          CadenaTeclado[caracter]= 'Q';
+        }
+        else
+        {
+          lcd.print('q');
+          CadenaTeclado[caracter]= 'q';
+        }
+      }
+    
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('R');
+          CadenaTeclado[caracter]= 'R';
+        }
+        else
+        {
+          lcd.print('r');
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('S');
+          CadenaTeclado[caracter]= 'S';
+        }
+        else
+        {
+          lcd.print('s');
+          CadenaTeclado[caracter]= 's';
+        }
+      }
+
+      if (veces_presionada == 5)
+      {
+        lcd.print('7');
+        CadenaTeclado[caracter]= '7';
+      }
+      break;
+
+    case '8':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '8' && veces_presionada > 0)
+      {
+        posX++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '8';
+
+      if (veces_presionada > 4)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('T');
+          CadenaTeclado[caracter]= 'T';
+        }
+        else
+        {
+          lcd.print('t');
+          CadenaTeclado[caracter]= 't';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('U');
+          CadenaTeclado[caracter]= 'U';
+        }
+        else
+        {
+          lcd.print('u');
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('V');
+          CadenaTeclado[caracter]= 'V';
+        }
+        else
+        {
+          lcd.print('v');
+          CadenaTeclado[caracter]= 'v';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        lcd.print('8');
+        CadenaTeclado[caracter]= '8';
+      }
+      break;
+
+    case '9':
+      //Condicional para que avance el cursor si anteriormente se estaba presionando una tecla distinta
+      if (presionando != '9' && veces_presionada > 0)
+      {
+        posX++;
+        veces_presionada = 0;
+      }
+
+      lcd.setCursor(posX, posY);
+      veces_presionada++;
+      contador = 0;
+      presionando = '9';
+
+      if (veces_presionada > 5)
+      {
+        veces_presionada = 1;
+      }
+
+      if (veces_presionada == 1)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('W');
+          CadenaTeclado[caracter]= 'W';
+        }
+        else
+        {
+          lcd.print('w');
+          CadenaTeclado[caracter]= 'w';
+        }
+      }
+
+      if (veces_presionada == 2)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('X');
+          CadenaTeclado[caracter]= 'X';
+        }
+        else
+        {
+          lcd.print('x');
+          CadenaTeclado[caracter]= 'x';
+        }
+      }
+
+      if (veces_presionada == 3)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('Y');
+          CadenaTeclado[caracter]= 'Y';
+        }
+        else
+        {
+          lcd.print('y');
+          CadenaTeclado[caracter]= 'y';
+        }
+      }
+
+      if (veces_presionada == 4)
+      {
+        if (mayuscula_activada == 1 || (posX == 0 && posY == 0))
+        {
+          lcd.print('Z');
+          CadenaTeclado[caracter]= 'Z';
+        }
+        else
+        {
+          lcd.print('z');
+          CadenaTeclado[caracter]= 'z';
+        }
+      }
+
+      if (veces_presionada == 5)
+      {
+        lcd.print('9');
+        CadenaTeclado[caracter]= '9';
+      }
+      break;
+  }
+}
+
+if(Sonidos==1)
+{
+Serial.print(CadenaTeclado[0]);
+if ( CadenaTeclado == "A123")
+{
+  for ( int i=0 ;i < CANT_TONE ; i++) 
+    {   
+  VectorFinal[i]= A123[i];
+  Serial.print(CadenaTeclado[i]);
+  Serial.print("\n");
+  
+    }
+}   
+if ( CadenaTeclado == "A100")
+{
+  for ( int i=0 ;i < CANT_TONE ; i++) 
+    {   
+  VectorFinal[i]= A100[i];
+  Serial.print(CadenaTeclado[i]);
+  Serial.print("\n");
+  
+    }
+}
+
+if ( CadenaTeclado == "A555")
+{
+  CANT_TONE=100;
+  
+  for ( int i=0 ;i < CANT_TONE ; i++) 
+    {   
+    VectorFinal[i]= A555[i];
+   
+    }
+}
+
+              if( (CadenaTeclado!= "A555") || (CadenaTeclado == "A100") || (CadenaTeclado == "A123"))
+                {
+                vuelta=0;
+                Sonidos=0;
+                InputTeclado=1;
+                lcd.setCursor(0, 0);
+                lcd.print("No Disponible");
+                delay(2000);
+                lcd.clear();
+                posX = 0;
+                posY = 0;
+                veces_presionada = 0;
+                caracter=0;
+                digitalWrite(Buzzer, LOW); 
+                CANT_TONE=24;
+                
+                }
+if(Sonidos==1)
+{
+  for ( int i=0 ;i < CANT_TONE ; i++) 
+       {       
+       Periodo= (1/VectorFinal[i])*1000000;
+       Timer1.initialize(Periodo);         // Dispara cada 250 ms
+       Timer1.attachInterrupt(ISR_Blink); // Activa la interrupcion y la asocia a ISR_Blink
+       Timer1.initialize(Periodo);                             // status a la salida
+       noInterrupts();               // Suspende las interrupciones
+       N = blinkCount;
+       interrupts();                 // Autoriza las interrupciones
+       delay(duracion);
+       Serial.print("Ciclos = ");
+       Serial.println(N);
+       }
+       N=0;
+       blinkCount=0;
+          while(vuelta==1)
+          {
+            digitalWrite(Buzzer, HIGH); 
+            digitalWrite(led, LOW);
+            
+            char tecla_presionada = teclado.getKey(); 
+                        
+              if(tecla_presionada == 'C')
+                {
+                vuelta=0;
+                Sonidos=0;
+                InputTeclado=1;
+                lcd.clear();
+                posX = 0;
+                posY = 0;
+                veces_presionada = 0;
+                caracter=0;
+                tecla_presionada=0;
+                digitalWrite(Buzzer, LOW); 
+                CANT_TONE=24;
+                          
+                }  
+        
+          }
+
+}
+}
+
+}
+
+void ISR_Blink()
+   {   ledState = !ledState ;
+       blinkCount++    ;     // Contador veces se enciende el LED
+       digitalWrite(led, ledState);  
+           
+   }
+
